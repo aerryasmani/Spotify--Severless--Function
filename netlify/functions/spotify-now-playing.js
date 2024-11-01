@@ -6,7 +6,7 @@ const axios = require('axios');
 exports.handler = async () => {
     // Add CORS headers to allow requests from your GitHub Pages domain
     const headers = {
-        'Access-Control-Allow-Origin': 'https://your-username.github.io', // Update this
+        'Access-Control-Allow-Origin': 'https://aerryasmani.github.io', // Update this
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, OPTIONS'
     };
