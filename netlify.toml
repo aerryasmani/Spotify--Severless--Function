@@ -2,6 +2,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[headers]]
   for = "/*"
     [headers.values]
     Access-Control-Allow-Origin = "*"
