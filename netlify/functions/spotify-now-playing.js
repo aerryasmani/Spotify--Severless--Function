@@ -1,40 +1,48 @@
+// package.json
+{
+  "name": "spotify-now-playing",
+  "version": "1.0.0",
+  "description": "Spotify Now Playing Function",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.2"
+  }
+}
+
+// netlify.toml
+[build]
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = ""
+    Access-Control-Allow-Methods = "GET, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
+
+// netlify/functions/spotify-now-playing.js
 const axios = require('axios');
 
 exports.handler = async (event) => {
-    // Add CORS headers to allow requests from your GitHub Pages domain
+    // CORS Headers
     const headers = {
-        'Access-Control-Allow-Origin': 'https://aerryasmani.github.io', // Modified to be less restrictive
+        'Access-Control-Allow-Origin': 'https://aerryasmani.github.io/ProjectJun24/', // Update this to your GitHub Pages URL in production
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, OPTIONS'
     };
 
-    // Handle preflight requests - fixed to use event.httpMethod
+    // Handle preflight requests
     if (event.httpMethod === 'OPTIONS') {
         return {
             statusCode: 204,
             headers
         };
-    }
-
-    // Verify environment variables
-    const requiredEnvVars = [
-        'SPOTIFY_REFRESH_TOKEN',
-        'SPOTIFY_CLIENT_ID',
-        'SPOTIFY_CLIENT_SECRET'
-    ];
-
-    for (const envVar of requiredEnvVars) {
-        if (!process.env[envVar]) {
-            console.error(`Missing required environment variable: ${envVar}`);
-            return {
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Server configuration error',
-                    details: `Missing ${envVar}`
-                })
-            };
-        }
     }
 
     try {
@@ -54,10 +62,6 @@ exports.handler = async (event) => {
         );
 
         const accessToken = tokenResponse.data.access_token;
-        
-        if (!accessToken) {
-            throw new Error('Failed to obtain access token');
-        }
 
         // Get now playing
         const response = await axios.get('https://api.spotify.com/v1/me/player/currently-playing', {
@@ -71,26 +75,12 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
-                    isPlaying: false,
-                    timestamp: new Date().toISOString()
+                    isPlaying: false
                 })
             };
         }
 
         const song = response.data;
-
-        // Verify song data structure
-        if (!song || !song.item) {
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify({
-                    isPlaying: false,
-                    error: 'No song data available',
-                    timestamp: new Date().toISOString()
-                })
-            };
-        }
 
         return {
             statusCode: 200,
@@ -101,26 +91,17 @@ exports.handler = async (event) => {
                 artist: song.item.artists.map(artist => artist.name).join(', '),
                 album: song.item.album.name,
                 albumImageUrl: song.item.album.images[0].url,
-                songUrl: song.item.external_urls.spotify,
-                timestamp: new Date().toISOString()
+                songUrl: song.item.external_urls.spotify
             })
         };
     } catch (error) {
-        console.error('Error details:', {
-            message: error.message,
-            response: error.response ? {
-                status: error.response.status,
-                data: error.response.data
-            } : null
-        });
-
+        console.error('Error:', error);
         return {
-            statusCode: error.response?.status || 500,
+            statusCode: 500,
             headers,
             body: JSON.stringify({ 
                 error: 'Failed to fetch Spotify data',
-                details: error.message,
-                timestamp: new Date().toISOString()
+                details: error.message 
             })
         };
     }
