@@ -1,31 +1,4 @@
-// package.json
-{
-    "name": "spotify-now-playing",
-    "version": "1.0.0",
-    "description": "Spotify Now Playing Function",
-    "main": "index.js",
-    "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-      "axios": "^1.6.2"
-    }
-  }
-  
-  // netlify.toml
-  [build]
-    functions = "netlify/functions"
-  
-  [[headers]]
-    for = "/*"
-      [headers.values]
-      Access-Control-Allow-Origin = "*"
-      Access-Control-Allow-Methods = "GET, OPTIONS"
-      Access-Control-Allow-Headers = "Content-Type"
-  
+
   // netlify/functions/spotify-now-playing.js
   const axios = require('axios');
   
