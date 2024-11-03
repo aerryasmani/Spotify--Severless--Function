@@ -1,4 +1,3 @@
-// netlify/functions/spotify-now-playing.js
 const axios = require('axios');
 
 // Define allowed origins
@@ -9,32 +8,27 @@ const allowedOrigins = {
     netlify: 'https://spotify-player-server.netlify.app'
 };
 
-// Retrieve refresh token and update localStorage if needed
-const getRefreshToken = async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
+// Function to get a new access token using the refresh token
+const getNewAccessToken = async () => {
     const url = "https://accounts.spotify.com/api/token";
 
-    const payload = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
+    const response = await axios.post(
+        url,
+        new URLSearchParams({
             grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-            client_id: process.env.SPOTIFY_CLIENT_ID
+            refresh_token: process.env.SPOTIFY_REFRESH_TOKEN // Use the environment variable for the refresh token
         }),
-    };
+        {
+            headers: {
+                'Authorization': `Basic ${Buffer.from(
+                    `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+                ).toString('base64')}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        }
+    );
 
-    const response = await fetch(url, payload);
-    const data = await response.json();
-
-    localStorage.setItem('access_token', data.access_token);
-    if (data.refresh_token) {
-        localStorage.setItem('refresh_token', data.refresh_token);
-    }
-
-    return data.access_token;
+    return response.data.access_token;
 };
 
 exports.handler = async (event) => {
@@ -54,33 +48,15 @@ exports.handler = async (event) => {
     }
 
     try {
-        // Refresh token handling
-        if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+        // Ensure environment variables are available
+        if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET || !process.env.SPOTIFY_REFRESH_TOKEN) {
             throw new Error('Missing Spotify credentials in environment variables');
         }
 
-        let accessToken;
-        try {
-            const tokenResponse = await axios.post('https://accounts.spotify.com/api/token',
-                new URLSearchParams({
-                    grant_type: 'refresh_token',
-                    refresh_token: process.env.SPOTIFY_REFRESH_TOKEN
-                }), {
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(
-                            `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-                        ).toString('base64')}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
-                }
-            );
-            accessToken = tokenResponse.data.access_token;
-        } catch (error) {
-            console.log('Failed to refresh token. Attempting client-side refresh...');
-            accessToken = await getRefreshToken();
-        }
+        // Get a new access token using the refresh token
+        const accessToken = await getNewAccessToken();
 
-        // Request current playback information
+        // Request current playback information from Spotify
         const response = await axios.get('https://api.spotify.com/v1/me/player/currently-playing', {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
