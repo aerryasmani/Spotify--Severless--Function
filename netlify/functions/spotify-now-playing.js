@@ -5,7 +5,7 @@ const axios = require('axios');
 const allowedOrigins = {
     production: 'https://heiyoaerry.one',
     development: 'https://aerryasmani.github.io',
-    local: 'http://localhost:3000'
+    local: 'http://127.0.0.1:5500/index.html'
 };
 
 exports.handler = async (event) => {
