@@ -2,10 +2,13 @@
 const axios = require('axios');
 
 // Define allowed origins
+// netlify/functions/spotify-now-playing.js
+
 const allowedOrigins = {
     production: 'https://heiyoaerry.one',
     development: 'https://aerryasmani.github.io',
-    local: 'http://127.0.0.1:5500/index.html'
+    local: 'http://127.0.0.1:5500/index.html',
+    netlify: 'https://spotify-player-server.netlify.app' // Add this line
 };
 
 exports.handler = async (event) => {
