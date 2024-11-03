@@ -2,24 +2,44 @@
 const axios = require('axios');
 
 // Define allowed origins
-// netlify/functions/spotify-now-playing.js
-
 const allowedOrigins = {
     production: 'https://heiyoaerry.one',
     development: 'https://aerryasmani.github.io',
     local: 'http://127.0.0.1:5500/index.html',
-    netlify: 'https://spotify-player-server.netlify.app' // Add this line
+    netlify: 'https://spotify-player-server.netlify.app'
+};
+
+// Retrieve refresh token and update localStorage if needed
+const getRefreshToken = async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    const url = "https://accounts.spotify.com/api/token";
+
+    const payload = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            client_id: process.env.SPOTIFY_CLIENT_ID
+        }),
+    };
+
+    const response = await fetch(url, payload);
+    const data = await response.json();
+
+    localStorage.setItem('access_token', data.access_token);
+    if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+    }
+
+    return data.access_token;
 };
 
 exports.handler = async (event) => {
-    // Get origin from request
     const origin = event.headers.origin;
-    console.log('Request origin:', origin);
-    
-    // Check if origin is allowed
     const isAllowedOrigin = Object.values(allowedOrigins).includes(origin);
-    console.log('Is origin allowed:', isAllowedOrigin);
-    
     const headers = {
         'Access-Control-Allow-Origin': isAllowedOrigin ? origin : allowedOrigins.production,
         'Access-Control-Allow-Headers': 'Content-Type',
@@ -34,44 +54,38 @@ exports.handler = async (event) => {
     }
 
     try {
-        // Log environment variables (remove sensitive info in production)
-        console.log('Environment check:', {
-            hasClientId: !!process.env.SPOTIFY_CLIENT_ID,
-            hasClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
-            hasRefreshToken: !!process.env.SPOTIFY_REFRESH_TOKEN
-        });
-
-        if (!process.env.SPOTIFY_REFRESH_TOKEN || !process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
-            throw new Error('Missing required Spotify credentials in environment variables');
+        // Refresh token handling
+        if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+            throw new Error('Missing Spotify credentials in environment variables');
         }
 
-        // Get access token
-        console.log('Requesting access token...');
-        const tokenResponse = await axios.post('https://accounts.spotify.com/api/token', 
-            new URLSearchParams({
-                grant_type: 'refresh_token',
-                refresh_token: process.env.SPOTIFY_REFRESH_TOKEN
-            }), {
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(
-                        `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-                    ).toString('base64')}`,
-                    'Content-Type': 'application/x-www-form-urlencoded'
+        let accessToken;
+        try {
+            const tokenResponse = await axios.post('https://accounts.spotify.com/api/token',
+                new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    refresh_token: process.env.SPOTIFY_REFRESH_TOKEN
+                }), {
+                    headers: {
+                        'Authorization': `Basic ${Buffer.from(
+                            `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+                        ).toString('base64')}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
                 }
-            }
-        );
+            );
+            accessToken = tokenResponse.data.access_token;
+        } catch (error) {
+            console.log('Failed to refresh token. Attempting client-side refresh...');
+            accessToken = await getRefreshToken();
+        }
 
-        console.log('Token response received');
-        const accessToken = tokenResponse.data.access_token;
-
-        // Get now playing
-        console.log('Requesting currently playing...');
+        // Request current playback information
         const response = await axios.get('https://api.spotify.com/v1/me/player/currently-playing', {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
             }
         });
-        console.log('Spotify API response status:', response.status);
 
         if (response.status === 204 || response.status === 404) {
             return {
@@ -85,11 +99,6 @@ exports.handler = async (event) => {
         }
 
         const song = response.data;
-        console.log('Song data received:', {
-            isPlaying: song.is_playing,
-            songName: song.item?.name
-        });
-
         return {
             statusCode: 200,
             headers,
@@ -104,19 +113,13 @@ exports.handler = async (event) => {
             })
         };
     } catch (error) {
-        console.error('Detailed error information:', {
-            message: error.message,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-            stack: error.stack
-        });
+        console.error('Error fetching data from Spotify API:', error.message);
 
         if (error.response) {
             return {
                 statusCode: error.response.status,
                 headers,
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     error: 'Spotify API Error',
                     message: error.response.data?.error?.message || error.message,
                     status: error.response.status,
@@ -128,10 +131,9 @@ exports.handler = async (event) => {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 error: 'Failed to fetch Spotify data',
-                message: error.message,
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                message: error.message
             })
         };
     }
