@@ -1,35 +1,55 @@
 const axios = require('axios');
 
-// Define allowed origins
-const allowedOrigins = {
-    production: 'https://heiyoaerry.one',
-    development: 'https://aerryasmani.github.io',
-    local: 'http://127.0.0.1:5500/index.html',
-    netlify: 'https://spotify-player-server.netlify.app'
+// Add token verification
+const verifyCredentials = () => {
+    const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+    if (!refreshToken || !clientId || !clientSecret) {
+        throw new Error('Missing required Spotify credentials');
+    }
+
+    // Verify token format
+    if (!/^[A-Za-z0-9-._~+/]+=*$/.test(refreshToken)) {
+        throw new Error('Invalid refresh token format');
+    }
 };
 
-// Function to get a new access token using the refresh token
+// Modified getNewAccessToken function with better error handling
 const getNewAccessToken = async () => {
+    verifyCredentials();
+    
     const url = "https://accounts.spotify.com/api/token";
+    const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
+    const auth = Buffer.from(
+        `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+    ).toString('base64');
 
-    const response = await axios.post(
-        url,
-        new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: process.env.SPOTIFY_REFRESH_TOKEN // Use the environment variable for the refresh token
-        }),
-        {
-            headers: {
-                'Authorization': `Basic ${Buffer.from(
-                    `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-                ).toString('base64')}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
+    try {
+        const response = await axios.post(
+            url,
+            new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken
+            }),
+            {
+                headers: {
+                    'Authorization': `Basic ${auth}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
             }
-        }
-    );
+        );
 
-    return response.data.access_token;
+        return response.data.access_token;
+    } catch (error) {
+        if (error.response?.data?.error === 'invalid_grant') {
+            throw new Error('Invalid refresh token. Please generate a new refresh token from Spotify.');
+        }
+        throw error;
+    }
 };
+
 
 exports.handler = async (event) => {
     const origin = event.headers.origin;
