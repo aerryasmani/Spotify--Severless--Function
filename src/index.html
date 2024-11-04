@@ -6,6 +6,76 @@
     <title>Spotify Serverless Function</title>
   </head>
   <body>
-    <h1>Hello world!</h1>
+    <h1>Hello world!</h1>  
+    
+    <div class="card-content">
+      <div id="spotify-widget">
+          <div class="loading">Loading...</div>
+      </div>
+  </div>
+
+    
+
+    <script>
+      async function getNowPlaying() {
+          console.log('Fetching now playing...'); // Debug log
+          try {
+              const response = await fetch('https://spotify-player-server.netlify.app/.netlify/functions/spotify-now-playing', {
+                  method: 'GET',
+                  headers: {
+                      'Accept': 'application/json'
+                  }
+              });
+              
+              console.log('Response status:', response.status); // Debug log
+              const data = await response.json();
+              console.log('Response data:', data); // Debug log
+              
+              const spotifyWidget = document.getElementById('spotify-widget');
+              
+              if (response.ok && data) {
+                  if (data.isPlaying) {
+                      spotifyWidget.innerHTML = `
+                          <div class="now-playing">
+                              <a href="${data.songUrl}" target="_blank" rel="noopener noreferrer">
+                                  ${data.title} - ${data.artist}
+                              </a>
+                          </div>
+                      `;
+                  } else {
+                      spotifyWidget.innerHTML = `
+                          <div class="not-playing">
+                              Not playing anything right now
+                          </div>
+                      `;
+                  }
+              } else {
+                  console.error('Error details:', {
+                      status: response.status,
+                      data: data
+                  });
+                  spotifyWidget.innerHTML = `
+                      <div class="error">
+                          Unable to fetch currently playing track (${response.status})
+                      </div>
+                  `;
+              }
+          } catch (error) {
+              console.error('Fetch error:', error);
+              const spotifyWidget = document.getElementById('spotify-widget');
+              spotifyWidget.innerHTML = `
+                  <div class="error">
+                      Connection error: ${error.message}
+                  </div>
+              `;
+          }
+      }
+      
+      // Call getNowPlaying immediately when the page loads
+      getNowPlaying();
+      
+      // Update every 30 seconds
+      setInterval(getNowPlaying, 30000);
+      </script>
   </body>
 </html>
